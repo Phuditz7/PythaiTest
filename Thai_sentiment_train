@@ -1,0 +1,60 @@
+import pythainlp
+from pythainlp.corpus.common import thai_words
+from pythainlp.tokenize import word_tokenize
+from thai_sentiment import get_sentiment
+
+max_words = 1000
+max_len = 150
+
+# Load the Thai sentiment lexicon
+sentiment_lexicon = get_sentiment.load_sentiment_lexicon()
+
+# Define a function to extract positive and negative word features from the text
+def extract_sentiment_features(text):
+    tokens = word_tokenize(text, engine='newmm')
+    pos_words = [w for w in tokens if w in sentiment_lexicon['pos']]
+    neg_words = [w for w in tokens if w in sentiment_lexicon['neg']]
+    pos_count = len(pos_words)
+    neg_count = len(neg_words)
+    return [pos_count, neg_count]
+
+# Load the training and testing data
+train_x, train_y, test_x, test_y = load_data()
+
+# Preprocess the text data by extracting sentiment features
+train_sentiment_features = [extract_sentiment_features(text) for text in train_x]
+test_sentiment_features = [extract_sentiment_features(text) for text in test_x]
+
+# Convert the text data to sequences of integers
+tokenizer = Tokenizer(num_words=max_words)
+tokenizer.fit_on_texts(train_x)
+train_sequences = tokenizer.texts_to_sequences(train_x)
+test_sequences = tokenizer.texts_to_sequences(test_x)
+
+# Pad the sequences to a fixed length
+train_sequences = pad_sequences(train_sequences, maxlen=max_len)
+test_sequences = pad_sequences(test_sequences, maxlen=max_len)
+
+# Convert the sentiment features to numpy arrays
+train_sentiment_features = np.array(train_sentiment_features)
+test_sentiment_features = np.array(test_sentiment_features)
+
+# Define the neural network model with an additional input layer for the sentiment features
+inputs1 = Input(shape=(max_len,))
+embedding_layer = Embedding(max_words, 50, input_length=max_len)(inputs1)
+conv_layer = Conv1D(64, 5, activation='relu')(embedding_layer)
+pooling_layer = GlobalMaxPooling1D()(conv_layer)
+inputs2 = Input(shape=(2,))
+concat_layer = Concatenate()([pooling_layer, inputs2])
+hidden_layer = Dense(10, activation='relu')(concat_layer)
+outputs = Dense(1, activation='sigmoid')(hidden_layer)
+model = Model(inputs=[inputs1, inputs2], outputs=outputs)
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Train the model on the text and sentiment features
+model.fit([train_sequences, train_sentiment_features], train_y, epochs=10, batch_size=32, validation_data=([test_sequences, test_sentiment_features], test_y))
+
+# Evaluate the model on the testing dataset
+loss, accuracy = model.evaluate([test_sequences, test_sentiment_features], test_y, verbose=0)
+print('Testing loss:', loss)
+print('Testing accuracy:', accuracy)
